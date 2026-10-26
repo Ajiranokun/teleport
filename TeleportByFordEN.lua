@@ -1,4 +1,4 @@
--- CB HUB | MARK & WAYPOINT (FIXED TOGGLE KEY SAVE/LOAD)
+-- CB HUB | KEY SYSTEM + MULTI-LANGUAGE (TH / EN) & MARK & WAYPOINT
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
@@ -24,7 +24,6 @@ local marks = {}
 local keybinds = {}    
 local connections = {}
 
--- สำหรับระบบ Save/Load ถาวร
 local savedConfigs = {} 
 local SAVE_FILENAME = "CBHub_SavedConfigs.json"
 
@@ -35,6 +34,7 @@ local waitingForMarkKey = false
 local waitingForToggleKey = false
 local toggleKey = Enum.KeyCode.RightAlt
 local minimized = false
+local currentLang = "TH" -- ค่าเริ่มต้นภาษาไทย ("TH" หรือ "EN")
 
 local gui
 
@@ -48,7 +48,6 @@ local function getRoot()
     return char and char:FindFirstChild("HumanoidRootPart")
 end
 
--- ฟังก์ชันหา KeyCode จากค่า Value ที่บันทึกไว้
 local function getKeyFromValue(val)
     if not val then return nil end
     for _, item in ipairs(Enum.KeyCode:GetEnumItems()) do
@@ -59,7 +58,6 @@ local function getKeyFromValue(val)
     return nil
 end
 
--- ฟังก์ชันบันทึกและโหลดไฟล์
 local function saveToFile()
     if not writefile then return end
     local dataToSave = {}
@@ -142,7 +140,7 @@ local function cleanup()
 end
 
 gui = Instance.new("ScreenGui")
-gui.Name = "CBHub_MarkWaypoint"
+gui.Name = "CBHub_KeySystem_Lang"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 999
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -210,7 +208,73 @@ local function makeButton(parent, text, size, pos, accent)
     return b
 end
 
--- MAIN WINDOW
+-- ==================== [ หน้าต่างใส่คีย์ (Key UI) ] ====================
+local keyWindow = Instance.new("Frame")
+keyWindow.Name = "KeyWindow"
+keyWindow.Size = UDim2.fromOffset(320, 210)
+keyWindow.Position = UDim2.new(0.5, -160, 0.5, -105)
+keyWindow.BackgroundColor3 = BG
+keyWindow.BorderSizePixel = 0
+keyWindow.Active = true
+keyWindow.ClipsDescendants = true
+keyWindow.Parent = gui
+
+corner(keyWindow, 12)
+stroke(keyWindow, RED, 1.5, 0.1)
+
+local keyHeader = Instance.new("Frame")
+keyHeader.Size = UDim2.new(1, 0, 0, 45)
+keyHeader.BackgroundColor3 = PANEL
+keyHeader.BorderSizePixel = 0
+keyHeader.Parent = keyWindow
+
+corner(keyHeader, 12)
+
+local keyTitleLabel = makeLabel(
+    keyHeader, "CB HUB - Key Verification",
+    UDim2.new(1, -20, 0, 25),
+    UDim2.fromOffset(14, 10),
+    14, WHITE, true
+)
+
+local keyInputBox = Instance.new("TextBox")
+keyInputBox.Size = UDim2.new(1, -28, 0, 38)
+keyInputBox.Position = UDim2.fromOffset(14, 65)
+keyInputBox.BackgroundColor3 = PANEL
+keyInputBox.TextColor3 = WHITE
+keyInputBox.PlaceholderText = "Enter your key here..."
+keyInputBox.PlaceholderColor3 = MUTED
+keyInputBox.Text = ""
+keyInputBox.ClearTextOnFocus = false
+keyInputBox.Font = Enum.Font.Gotham
+keyInputBox.TextSize = 13
+keyInputBox.TextXAlignment = Enum.TextXAlignment.Left
+keyInputBox.Parent = keyWindow
+
+corner(keyInputBox, 8)
+stroke(keyInputBox, Color3.fromRGB(55, 59, 73), 1)
+
+local keyInputPadding = Instance.new("UIPadding")
+keyInputPadding.PaddingLeft = UDim.new(0, 11)
+keyInputPadding.PaddingRight = UDim.new(0, 8)
+keyInputPadding.Parent = keyInputBox
+
+local submitKeyBtn = makeButton(
+    keyWindow, "Verify Key",
+    UDim2.new(1, -28, 0, 38),
+    UDim2.fromOffset(14, 115),
+    true
+)
+
+local keyStatusLabel = makeLabel(
+    keyWindow, "",
+    UDim2.new(1, -28, 0, 20),
+    UDim2.fromOffset(14, 162),
+    11, RED, false
+)
+keyStatusLabel.TextXAlignment = Enum.TextXAlignment.Center
+
+-- ==================== [ หน้าต่างหลัก (Main UI) ซ่อนไว้ก่อน ] ====================
 local main = Instance.new("Frame")
 main.Name = "Main"
 main.Size = UDim2.fromOffset(365, 490)
@@ -219,6 +283,7 @@ main.BackgroundColor3 = BG
 main.BorderSizePixel = 0
 main.Active = true
 main.ClipsDescendants = true
+main.Visible = false 
 main.Parent = gui
 
 corner(main, 12)
@@ -259,19 +324,27 @@ local logoText = makeLabel(
 )
 logoText.TextXAlignment = Enum.TextXAlignment.Center
 
-makeLabel(
+local titleMain = makeLabel(
     header, "CB HUB",
     UDim2.new(0, 145, 0, 23),
     UDim2.fromOffset(52, 6),
     16, WHITE, true
 )
 
-makeLabel(
-    header, "MARK & WAYPOINT",
+local subTitleMain = makeLabel(
+    header, "Waypoint System",
     UDim2.new(0, 160, 0, 16),
     UDim2.fromOffset(53, 27),
     10, MUTED, true
 )
+
+-- ปุ่มเปลี่ยนภาษา (TH / EN)
+local langBtn = makeButton(
+    header, "LANG: TH",
+    UDim2.fromOffset(70, 26),
+    UDim2.new(1, -140, 0, 13)
+)
+langBtn.TextSize = 11
 
 local minimizeBtn = makeButton(
     header, "—",
@@ -306,8 +379,8 @@ local contentPadding = Instance.new("UIPadding")
 contentPadding.PaddingBottom = UDim.new(0, 14)
 contentPadding.Parent = content
 
-makeLabel(
-    content, "CREATE MARK",
+local lblCreate = makeLabel(
+    content, "Create Waypoint",
     UDim2.new(1, 0, 0, 22),
     UDim2.fromOffset(2, 0),
     12, RED, true
@@ -318,7 +391,7 @@ nameBox.Size = UDim2.new(1, 0, 0, 39)
 nameBox.Position = UDim2.fromOffset(0, 27)
 nameBox.BackgroundColor3 = PANEL
 nameBox.TextColor3 = WHITE
-nameBox.PlaceholderText = "Enter mark name..."
+nameBox.PlaceholderText = "Enter waypoint name..."
 nameBox.PlaceholderColor3 = MUTED
 nameBox.Text = ""
 nameBox.ClearTextOnFocus = false
@@ -335,48 +408,48 @@ namePadding.PaddingLeft = UDim.new(0, 11)
 namePadding.PaddingRight = UDim.new(0, 8)
 namePadding.Parent = nameBox
 
-makeLabel(
-    content, "TELEPORT KEYBIND",
+local lblKeybind = makeLabel(
+    content, "Teleport Keybind",
     UDim2.new(1, 0, 0, 19),
     UDim2.fromOffset(2, 74),
     11, MUTED, true
 )
 
 local keyBtn = makeButton(
-    content, "＋   Choose Key  ·  Optional",
+    content, "＋   Select Keybind  ·  (Optional)",
     UDim2.new(1, 0, 0, 37),
     UDim2.fromOffset(0, 96)
 )
 
 local clearKeyBtn = makeButton(
-    content, "CLEAR",
+    content, "Clear",
     UDim2.fromOffset(65, 29),
     UDim2.new(1, -65, 0, 139)
 )
 
 local keyStatus = makeLabel(
-    content, "Current key: NONE",
+    content, "Current Key: None",
     UDim2.new(1, -75, 0, 29),
     UDim2.fromOffset(3, 139),
     11, MUTED, false
 )
 
 local createBtn = makeButton(
-    content, "＋   CREATE MARK",
+    content, "＋   Save Waypoint",
     UDim2.new(1, 0, 0, 39),
     UDim2.fromOffset(0, 178),
     true
 )
 
-makeLabel(
-    content, "SAVED MARKS",
+local lblList = makeLabel(
+    content, "Waypoints List",
     UDim2.new(1, -100, 0, 24),
     UDim2.fromOffset(2, 229),
     12, RED, true
 )
 
 local countLabel = makeLabel(
-    content, "0 MARKS",
+    content, "0 Points",
     UDim2.fromOffset(95, 24),
     UDim2.new(1, -95, 0, 229),
     10, MUTED, true
@@ -410,34 +483,32 @@ rowLayout.SortOrder = Enum.SortOrder.LayoutOrder
 rowLayout.Parent = rowScroll
 
 local teleportBtn = makeButton(
-    content, "TELEPORT SELECTED",
+    content, "Teleport to Selected",
     UDim2.new(1, 0, 0, 35),
     UDim2.fromOffset(0, 412)
 )
 
 local deleteSelectedBtn = makeButton(
-    content, "DELETE SELECTED",
+    content, "Delete Selected",
     UDim2.new(0.5, -4, 0, 33),
     UDim2.fromOffset(0, 455)
 )
 
 local deleteAllBtn = makeButton(
-    content, "DELETE ALL",
+    content, "Delete All",
     UDim2.new(0.5, -4, 0, 33),
     UDim2.new(0.5, 4, 0, 455)
 )
 
--- SAVE BUTTON
 local saveSettingsBtn = makeButton(
-    content, "SAVE",
+    content, "Save Profiles",
     UDim2.new(1, 0, 0, 34),
     UDim2.fromOffset(0, 497),
     true
 )
 
--- UI TOGGLE KEY BUTTON
 local toggleBtn = makeButton(
-    content, "UI TOGGLE KEY: RightAlt",
+    content, "UI Toggle Key: RightAlt",
     UDim2.new(1, 0, 0, 34),
     UDim2.fromOffset(0, 539)
 )
@@ -473,15 +544,8 @@ emptyAccent.BackgroundColor3 = RED
 emptyAccent.BorderSizePixel = 0
 emptyAccent.Parent = emptyHeader
 
-makeLabel(
-    emptyHeader, "CB HUB",
-    UDim2.new(1, -100, 0, 23),
-    UDim2.fromOffset(14, 5),
-    16, WHITE, true
-)
-
-makeLabel(
-    emptyHeader, "SAVE / LOAD CONFIGS",
+local subTitleSaveHead = makeLabel(
+    emptyHeader, "Save / Load Profiles",
     UDim2.new(1, -100, 0, 16),
     UDim2.fromOffset(15, 27),
     10, MUTED, true
@@ -495,21 +559,19 @@ local emptyClose = makeButton(
 )
 emptyClose.TextSize = 19
 
--- BACK BUTTON
 local backBtn = makeButton(
     emptyPage,
-    "←   BACK",
+    "←   Back",
     UDim2.fromOffset(100, 35),
     UDim2.fromOffset(14, 64)
 )
 
--- ช่องใส่ชื่อเซฟ
 local saveNameBox = Instance.new("TextBox")
 saveNameBox.Size = UDim2.new(1, -28, 0, 38)
 saveNameBox.Position = UDim2.fromOffset(14, 110)
 saveNameBox.BackgroundColor3 = PANEL
 saveNameBox.TextColor3 = WHITE
-saveNameBox.PlaceholderText = "Enter save name..."
+saveNameBox.PlaceholderText = "Enter profile name..."
 saveNameBox.PlaceholderColor3 = MUTED
 saveNameBox.Text = ""
 saveNameBox.ClearTextOnFocus = false
@@ -526,36 +588,34 @@ saveNamePadding.PaddingLeft = UDim.new(0, 11)
 saveNamePadding.PaddingRight = UDim.new(0, 8)
 saveNamePadding.Parent = saveNameBox
 
--- ปุ่ม SAVE / USE / DELETE
 local saveBtnShort = makeButton(
-    emptyPage, "SAVE",
+    emptyPage, "Save",
     UDim2.new(0.32, -6, 0, 36),
     UDim2.fromOffset(14, 158),
     true
 )
 
 local useSaveBtn = makeButton(
-    emptyPage, "USE",
+    emptyPage, "Load",
     UDim2.new(0.32, -6, 0, 36),
     UDim2.new(0.32, 6, 0, 158),
     false
 )
 
 local deleteSaveBtn = makeButton(
-    emptyPage, "DELETE",
+    emptyPage, "Delete",
     UDim2.new(0.32, -6, 0, 36),
     UDim2.new(0.64, 10, 0, 158),
     true
 )
 
-makeLabel(
-    emptyPage, "SAVED PROFILES",
+local lblProfilesList = makeLabel(
+    emptyPage, "Saved Profiles",
     UDim2.new(1, -28, 0, 20),
     UDim2.fromOffset(14, 204),
     12, RED, true
 )
 
--- พื้นที่แสดงรายชื่อไฟล์เซฟที่มีอยู่
 local saveRows = Instance.new("Frame")
 saveRows.Position = UDim2.fromOffset(14, 228)
 saveRows.Size = UDim2.new(1, -28, 0, 240)
@@ -581,6 +641,108 @@ local saveRowLayout = Instance.new("UIListLayout")
 saveRowLayout.Padding = UDim.new(0, 5)
 saveRowLayout.SortOrder = Enum.SortOrder.LayoutOrder
 saveRowLayout.Parent = saveRowScroll
+
+-- ฟังก์ชันอัปเดตภาษา UI
+local function updateLanguage()
+    if currentLang == "TH" then
+        langBtn.Text = "LANG: TH"
+        subTitleMain.Text = "ระบบบันทึกพิกัด"
+        lblCreate.Text = "สร้างจุดพิกัด"
+        nameBox.PlaceholderText = "พิมพ์ชื่อจุดพิกัด..."
+        lblKeybind.Text = "ปุ่มลัดวาป (คีย์ลัด)"
+        if not draftKey then
+            keyBtn.Text = "＋   เลือกปุ่มคีย์ลัด  ·  (ไม่บังคับ)"
+            keyStatus.Text = "ปุ่มปัจจุบัน: ไม่มี"
+        end
+        clearKeyBtn.Text = "ล้างค่า"
+        createBtn.Text = "＋   บันทึกจุดพิกัด"
+        lblList.Text = "รายการพิกัด"
+        teleportBtn.Text = "วาปไปยังจุดที่เลือก"
+        deleteSelectedBtn.Text = "ลบจุดที่เลือก"
+        deleteAllBtn.Text = "ลบทั้งหมด"
+        saveSettingsBtn.Text = "บันทึกโปรไฟล์"
+        toggleBtn.Text = "ปุ่มเปิด-ปิด UI: " .. toggleKey.Name
+        subTitleSaveHead.Text = "บันทึก / โหลด โปรไฟล์"
+        backBtn.Text = "←   กลับ"
+        saveNameBox.PlaceholderText = "พิมพ์ชื่อโปรไฟล์..."
+        saveBtnShort.Text = "บันทึก"
+        useSaveBtn.Text = "ใช้งาน"
+        deleteSaveBtn.Text = "ลบ"
+        lblProfilesList.Text = "โปรไฟล์ที่บันทึกไว้"
+    else
+        langBtn.Text = "LANG: EN"
+        subTitleMain.Text = "Waypoint System"
+        lblCreate.Text = "Create Waypoint"
+        nameBox.PlaceholderText = "Enter waypoint name..."
+        lblKeybind.Text = "Teleport Keybind"
+        if not draftKey then
+            keyBtn.Text = "＋   Select Keybind  ·  (Optional)"
+            keyStatus.Text = "Current Key: None"
+        end
+        clearKeyBtn.Text = "Clear"
+        createBtn.Text = "＋   Save Waypoint"
+        lblList.Text = "Waypoints List"
+        teleportBtn.Text = "Teleport to Selected"
+        deleteSelectedBtn.Text = "Delete Selected"
+        deleteAllBtn.Text = "Delete All"
+        saveSettingsBtn.Text = "Save Profiles"
+        toggleBtn.Text = "UI Toggle Key: " .. toggleKey.Name
+        subTitleSaveHead.Text = "Save / Load Profiles"
+        backBtn.Text = "←   Back"
+        saveNameBox.PlaceholderText = "Enter profile name..."
+        saveBtnShort.Text = "Save"
+        useSaveBtn.Text = "Load"
+        deleteSaveBtn.Text = "Delete"
+        lblProfilesList.Text = "Saved Profiles"
+    end
+end
+
+track(langBtn.Activated:Connect(function()
+    currentLang = currentLang == "TH" and "EN" or "TH"
+    updateLanguage()
+end))
+
+-- ==================== [ ระบบตรวจสอบคีย์ผ่าน GitHub ที่ใส่ลิงก์แล้ว ] ====================
+track(submitKeyBtn.Activated:Connect(function()
+    local inputKey = keyInputBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
+    if inputKey == "" then
+        keyStatusLabel.Text = "Please enter your key!"
+        return
+    end
+
+    keyStatusLabel.Text = "Verifying..."
+    keyStatusLabel.TextColor3 = WHITE
+
+    local success, response = pcall(function()
+        return game:HttpGet("https://raw.githubusercontent.com/Ajiranokun/Ford-keys/refs/heads/main/keys.json")
+    end)
+
+    if not success then
+        keyStatusLabel.Text = "Connection failed!"
+        keyStatusLabel.TextColor3 = RED
+        return
+    end
+
+    local ok, allowedKeys = pcall(function()
+        return HttpService:JSONDecode(response)
+    end)
+
+    if not ok or type(allowedKeys) ~= "table" then
+        keyStatusLabel.Text = "Invalid key data format!"
+        keyStatusLabel.TextColor3 = RED
+        return
+    end
+
+    local myUsername = player.Name
+
+    if allowedKeys[myUsername] and allowedKeys[myUsername] == inputKey then
+        keyWindow.Visible = false
+        main.Visible = true
+    else
+        keyStatusLabel.Text = "Invalid key or not bound to this account!"
+        keyStatusLabel.TextColor3 = RED
+    end
+end))
 
 -- TELEPORT
 local function teleport(name)
@@ -611,11 +773,11 @@ redraw = function()
     end
     table.sort(names)
 
-    countLabel.Text = tostring(#names) .. " MARKS"
+    countLabel.Text = tostring(#names) .. (currentLang == "TH" and " จุด" or " Points")
 
     for i, name in ipairs(names) do
         local key = keybinds[name]
-        local keyName = key and key.Name or "NONE"
+        local keyName = key and key.Name or (currentLang == "TH" and "ไม่มี" or "None")
         local prefix = name == selected and "✓   " or "   "
 
         local row = makeButton(
@@ -641,25 +803,21 @@ redraw = function()
     end
 end
 
--- ฟังก์ชันโหลดเซฟมาใช้งานบนหน้าจอหลัก (รวมคีย์ลัดและ Toggle Key)
 local function loadSelectedConfig()
     if not selectedSaveConfig then return end
     if savedConfigs[selectedSaveConfig] then
         marks = {}
         keybinds = {}
         
-        -- โหลด Marks
         for mName, pos in pairs(savedConfigs[selectedSaveConfig].marks) do
             marks[mName] = pos
         end
-        -- โหลด Keybinds
         for mName, keyCode in pairs(savedConfigs[selectedSaveConfig].keybinds) do
             keybinds[mName] = keyCode
         end
-        -- โหลด Toggle Key
         if savedConfigs[selectedSaveConfig].toggleKey then
             toggleKey = savedConfigs[selectedSaveConfig].toggleKey
-            toggleBtn.Text = "UI TOGGLE KEY: " .. toggleKey.Name
+            toggleBtn.Text = (currentLang == "TH" and "ปุ่มเปิด-ปิด UI: " or "UI Toggle Key: ") .. toggleKey.Name
         end
 
         selected = nil
@@ -669,7 +827,6 @@ local function loadSelectedConfig()
     end
 end
 
--- REDRAW SAVE CONFIG FILES LIST
 redrawSaveFiles = function()
     for _, child in ipairs(saveRowScroll:GetChildren()) do
         if child ~= saveRowLayout then
@@ -708,12 +865,11 @@ redrawSaveFiles = function()
     end
 end
 
--- CREATE MARK
 local function createMark()
     local name = nameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
 
     if name == "" then
-        nameBox.PlaceholderText = "Enter mark name first"
+        nameBox.PlaceholderText = currentLang == "TH" and "กรุณาพิมพ์ชื่อก่อน!" or "Please enter a name!"
         return
     end
 
@@ -723,7 +879,7 @@ local function createMark()
     if draftKey then
         for existingName, existingKey in pairs(keybinds) do
             if existingKey == draftKey and existingName ~= name then
-                keyStatus.Text = "Current key: ALREADY USED"
+                keyStatus.Text = currentLang == "TH" and "ปุ่มนี้ถูกใช้งานแล้ว!" or "Key already in use!"
                 keyStatus.TextColor3 = RED
                 return
             end
@@ -736,50 +892,46 @@ local function createMark()
 
     nameBox.Text = ""
     draftKey = nil
-    keyBtn.Text = "＋   Choose Key  ·  Optional"
-    keyStatus.Text = "Current key: NONE"
+    keyBtn.Text = currentLang == "TH" and "＋   เลือกปุ่มคีย์ลัด  ·  (ไม่บังคับ)" or "＋   Select Keybind  ·  (Optional)"
+    keyStatus.Text = currentLang == "TH" and "ปุ่มปัจจุบัน: ไม่มี" or "Current Key: None"
     keyStatus.TextColor3 = MUTED
 
     redraw()
 end
 
--- BUTTON EVENTS
 track(keyBtn.Activated:Connect(function()
     waitingForMarkKey = true
     waitingForToggleKey = false
-    keyBtn.Text = "Press a key... (Esc to cancel)"
-    keyStatus.Text = "Current key: WAITING"
+    keyBtn.Text = currentLang == "TH" and "กดปุ่มคีย์ลัด... (Esc ยกเลิก)" or "Press a key... (Esc to cancel)"
+    keyStatus.Text = currentLang == "TH" and "สถานะ: กำลังรอปุ่ม..." or "Status: Waiting for key..."
     keyStatus.TextColor3 = RED
 end))
 
 track(clearKeyBtn.Activated:Connect(function()
     draftKey = nil
     waitingForMarkKey = false
-    keyBtn.Text = "＋   Choose Key  ·  Optional"
-    keyStatus.Text = "Current key: NONE"
+    keyBtn.Text = currentLang == "TH" and "＋   เลือกปุ่มคีย์ลัด  ·  (ไม่บังคับ)" or "＋   Select Keybind  ·  (Optional)"
+    keyStatus.Text = currentLang == "TH" and "ปุ่มปัจจุบัน: ไม่มี" or "Current Key: None"
     keyStatus.TextColor3 = MUTED
 end))
 
 track(createBtn.Activated:Connect(createMark))
 
--- SAVE opens the empty page
 track(saveSettingsBtn.Activated:Connect(function()
     main.Visible = false
     emptyPage.Visible = true
     redrawSaveFiles()
 end))
 
--- BACK returns to main
 track(backBtn.Activated:Connect(function()
     emptyPage.Visible = false
     main.Visible = true
 end))
 
--- ปุ่ม SAVE (บันทึกข้อมูลหน้าจอหลักรวมถึงคีย์ลัดและ Toggle Key)
 track(saveBtnShort.Activated:Connect(function()
     local cName = saveNameBox.Text:gsub("^%s+", ""):gsub("%s+$", "")
     if cName == "" then
-        saveNameBox.PlaceholderText = "Enter name first!"
+        saveNameBox.PlaceholderText = currentLang == "TH" and "กรุณาพิมพ์ชื่อก่อน!" or "Please enter a name!"
         return
     end
 
@@ -805,12 +957,10 @@ track(saveBtnShort.Activated:Connect(function()
     redrawSaveFiles()
 end))
 
--- ปุ่ม USE (โหลดโปรไฟล์ที่เลือกมาใส่หน้าจอหลักพร้อมคีย์ลัดและ Toggle Key)
 track(useSaveBtn.Activated:Connect(function()
     loadSelectedConfig()
 end))
 
--- ปุ่ม DELETE (ลบโปรไฟล์ที่เลือกออกจากไฟล์ถาวร)
 track(deleteSaveBtn.Activated:Connect(function()
     if not selectedSaveConfig then return end
     
@@ -843,9 +993,9 @@ track(deleteAllBtn.Activated:Connect(function()
     selected = nil
     draftKey = nil
 
-    keyStatus.Text = "Current key: NONE"
+    keyStatus.Text = currentLang == "TH" and "ปุ่มปัจจุบัน: ไม่มี" or "Current Key: None"
     keyStatus.TextColor3 = MUTED
-    keyBtn.Text = "＋   Choose Key  ·  Optional"
+    keyBtn.Text = currentLang == "TH" and "＋   เลือกปุ่มคีย์ลัด  ·  (ไม่บังคับ)" or "＋   Select Keybind  ·  (Optional)"
 
     redraw()
 end))
@@ -853,10 +1003,9 @@ end))
 track(toggleBtn.Activated:Connect(function()
     waitingForToggleKey = true
     waitingForMarkKey = false
-    toggleBtn.Text = "Press a key... (Esc cancels)"
+    toggleBtn.Text = currentLang == "TH" and "กดปุ่มเปิด-ปิด UI... (Esc ยกเลิก)" or "Press toggle key... (Esc to cancel)"
 end))
 
--- KEYBOARD INPUT
 track(UIS.InputBegan:Connect(function(input, processed)
     if not alive then return end
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
@@ -864,7 +1013,7 @@ track(UIS.InputBegan:Connect(function(input, processed)
     if waitingForToggleKey then
         if input.KeyCode == Enum.KeyCode.Escape then
             waitingForToggleKey = false
-            toggleBtn.Text = "UI TOGGLE KEY: " .. toggleKey.Name
+            toggleBtn.Text = (currentLang == "TH" and "ปุ่มเปิด-ปิด UI: " or "UI Toggle Key: ") .. toggleKey.Name
             return
         end
 
@@ -884,29 +1033,25 @@ track(UIS.InputBegan:Connect(function(input, processed)
         end
 
         waitingForToggleKey = false
-        toggleBtn.Text = "UI TOGGLE KEY: " .. toggleKey.Name
+        toggleBtn.Text = (currentLang == "TH" and "ปุ่มเปิด-ปิด UI: " or "UI Toggle Key: ") .. toggleKey.Name
         return
     end
 
-    if input.KeyCode == toggleKey then
-        if emptyPage.Visible then
-            emptyPage.Visible = false
-            main.Visible = true
-        elseif main.Visible then
-            main.Visible = false
-        else
-            main.Visible = true
-        end
+    if input.KeyCode == toggleKey and main.Visible then
+        main.Visible = false
+        return
+    elseif input.KeyCode == toggleKey and not main.Visible and keyWindow.Visible == false then
+        main.Visible = true
         return
     end
 
     if waitingForMarkKey then
         if input.KeyCode == Enum.KeyCode.Escape then
             waitingForMarkKey = false
-            keyBtn.Text = "＋   Choose Key  ·  Optional"
+            keyBtn.Text = currentLang == "TH" and "＋   เลือกปุ่มคีย์ลัด  ·  (ไม่บังคับ)" or "＋   Select Keybind  ·  (Optional)"
             keyStatus.Text = draftKey
-                and ("Current key: " .. draftKey.Name)
-                or "Current key: NONE"
+                and ((currentLang == "TH" and "ปุ่มปัจจุบัน: " or "Current Key: ") .. draftKey.Name)
+                or (currentLang == "TH" and "ปุ่มปัจจุบัน: ไม่มี" or "Current Key: None")
             keyStatus.TextColor3 = draftKey and GREEN or MUTED
             return
         end
@@ -922,11 +1067,11 @@ track(UIS.InputBegan:Connect(function(input, processed)
             end
 
             if conflict then
-                keyStatus.Text = "Current key: ALREADY USED"
+                keyStatus.Text = currentLang == "TH" and "ปุ่มนี้ถูกใช้งานแล้ว!" or "Key already in use!"
                 keyStatus.TextColor3 = RED
             else
                 draftKey = input.KeyCode
-                keyStatus.Text = "Current key: " .. draftKey.Name
+                keyStatus.Text = (currentLang == "TH" and "ปุ่มปัจจุบัน: " or "Current Key: ") .. draftKey.Name
                 keyStatus.TextColor3 = GREEN
                 keyBtn.Text = "✓   " .. draftKey.Name
             end
@@ -978,38 +1123,6 @@ track(UIS.InputEnded:Connect(function(input)
     end
 end))
 
--- DRAG EMPTY PAGE
-local emptyDragging = false
-local emptyDragStart
-local emptyStartPosition
-
-track(emptyHeader.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        emptyDragging = true
-        emptyDragStart = input.Position
-        emptyStartPosition = emptyPage.Position
-    end
-end))
-
-track(UIS.InputChanged:Connect(function(input)
-    if emptyDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        local delta = input.Position - emptyDragStart
-
-        emptyPage.Position = UDim2.new(
-            emptyStartPosition.X.Scale,
-            emptyStartPosition.X.Offset + delta.X,
-            emptyStartPosition.Y.Scale,
-            emptyStartPosition.Y.Offset + delta.Y
-        )
-    end
-end))
-
-track(UIS.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        emptyDragging = false
-    end
-end))
-
 -- MINIMIZE
 track(minimizeBtn.Activated:Connect(function()
     minimized = not minimized
@@ -1022,13 +1135,8 @@ track(minimizeBtn.Activated:Connect(function()
     minimizeBtn.Text = minimized and "+" or "—"
 end))
 
--- CLOSE EMPTY PAGE
-track(emptyClose.Activated:Connect(function()
-    emptyPage.Visible = false
-    main.Visible = false
-end))
-
 -- CLOSE EVERYTHING
 track(closeBtn.Activated:Connect(cleanup))
 
+updateLanguage()
 redraw()
